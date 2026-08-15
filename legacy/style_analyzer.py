@@ -1,7 +1,7 @@
 # core/style_analyzer.py
 import logging
 from typing import Optional
-from core.llm_client import llm
+from llm_client import llm
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
 # core/llm_client.py
+# 已归档到 legacy/：当前未被主流程引用（见 legacy/README.md）
 import os
 import sys
 import logging

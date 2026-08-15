@@ -1,11 +1,15 @@
 # tasks/celery_app.py
 import json
 import os
+import sys
 import logging
 from celery import Celery
 
+# 保证从 legacy/ 子目录运行时也能 import 项目根目录的 config
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import TEMP_DIR
-from core.video_tagger import generate_video_tags
+from video_tagger import generate_video_tags
 
 logger = logging.getLogger(__name__)
 

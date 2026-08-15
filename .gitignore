@@ -2,6 +2,9 @@
 image/
 __pycache__/
 *.pyc
+*.db
+*.sqlite3
+api_start*.log
 .env
 # 忽略 log 和 history 文件夹内的所有文件
 log/*

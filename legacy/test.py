@@ -1,8 +1,8 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.llm_client import llm
+from llm_client import llm
 
 # # 测试1：普通对话（关闭思考模式）
 # result = llm.chat(

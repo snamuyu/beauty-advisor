@@ -1,7 +1,7 @@
 # core/video_tagger.py
 import json
 import logging
-from core.llm_client import llm
+from llm_client import llm
 
 logger = logging.getLogger(__name__)
 

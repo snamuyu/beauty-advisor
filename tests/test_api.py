@@ -1,9 +1,18 @@
 import requests
 import base64
 import json
+import sys
+from pathlib import Path
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 # 读取图片并转成 Base64
-with open("./image/test.jpg", "rb") as f:
+IMG_PATH = Path(__file__).resolve().parent.parent / "image" / "test.jpg"
+with open(IMG_PATH, "rb") as f:
     image_base64 = base64.b64encode(f.read()).decode()
 
 # 发送请求

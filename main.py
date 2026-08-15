@@ -14,6 +14,8 @@ import openai
 app = FastAPI(title="Beauty Advisor API", description="AI 个人风格诊断后端")
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.recommend import router as recommend_router
+
 # --- CORS 跨域支持 ---
 app.add_middleware(
     CORSMiddleware,
@@ -48,6 +50,7 @@ logger.info(f"日志文件已创建: {log_filepath}")
 
 # --- 初始化 FastAPI 应用 ---
 # app = FastAPI(title="Beauty Advisor API", description="AI 个人风格诊断后端")
+app.include_router(recommend_router)
 
 # --- 初始化人脸分析器 ---
 try:
