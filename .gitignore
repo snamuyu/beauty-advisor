@@ -5,6 +5,7 @@ __pycache__/
 *.db
 *.sqlite3
 api_start*.log
+更新记录.md
 .env
 # 忽略 log 和 history 文件夹内的所有文件
 log/*

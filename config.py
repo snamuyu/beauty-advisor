@@ -1,4 +1,5 @@
 import os
+import tempfile
 from dotenv import load_dotenv
 
 # 加载 .env 文件
@@ -16,16 +17,31 @@ if not DASHSCOPE_API_KEY:
     raise ValueError("请在 .env 文件中配置 DASHSCOPE_API_KEY")
 
 # ===== LLM 配置（从 .env 读取）=====
+# provider: cloud（阿里云 DashScope，默认）或 local（本地 llama.cpp，复活 legacy 时用）
 LLM_CONFIG = {
+    "provider": os.getenv("LLM_PROVIDER", "cloud"),
     "cloud": {
         "api_key": os.getenv("LLM_API_KEY", ""),
         "base_url": os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    }
+        "model": os.getenv("LLM_MODEL", "qwen-max"),
+    },
+    "local": {
+        "api_key": "not-needed",
+        "base_url": os.getenv("LOCAL_LLM_BASE_URL", "http://127.0.0.1:8080/v1"),
+        "model": os.getenv("LOCAL_LLM_MODEL", "qwen2.5"),
+    },
 }
 
 # ===== 通用配置 =====
 MAX_KEYFRAMES = 8
-TEMP_DIR = "/tmp/beauty-advisor"
+# Windows 下 /tmp 无效，改用系统临时目录
+TEMP_DIR = os.path.join(tempfile.gettempdir(), "beauty-advisor")
+
+# ===== 服务配置 =====
+APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 
 # ===== 数据库配置（第三周 Day 1）=====
 # 默认 SQLite（MVP 推荐，无需安装任何数据库服务），数据库文件在 data/beauty_advisor.db

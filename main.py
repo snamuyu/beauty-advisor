@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from core.face_analyzer import FaceAnalyzer
-from config import BAIDU_API_KEY, BAIDU_SECRET_KEY, LLM_CONFIG
+from config import CORS_ORIGINS, LLM_CONFIG, LOG_LEVEL
 
 import base64
 import logging
@@ -19,7 +19,7 @@ from api.recommend import router as recommend_router
 # --- CORS 跨域支持 ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源访问（开发阶段用 *，生产环境建议指定具体域名）
+    allow_origins=CORS_ORIGINS,  # 从 config/.env 读取，开发默认 *，生产请配置具体域名
     allow_credentials=True,
     allow_methods=["*"],  # 允许所有方法 (POST, GET, etc.)
     allow_headers=["*"],  # 允许所有头部
@@ -36,7 +36,7 @@ log_filename = f"{CURRENT_USER}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 log_filepath = os.path.join(LOG_DIR, log_filename)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(log_filepath, encoding="utf-8"),  # 写入文件

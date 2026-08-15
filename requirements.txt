@@ -6,3 +6,5 @@ openai
 python-dotenv
 sqlalchemy
 pymysql
+pillow
+httpx
