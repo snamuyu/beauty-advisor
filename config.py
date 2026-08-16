@@ -43,7 +43,7 @@ APP_PORT = int(os.getenv("APP_PORT", "8000"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 
-# ===== 数据库配置（第三周 Day 1）=====
+# ===== 数据库配置 =====
 # 默认 SQLite（MVP 推荐，无需安装任何数据库服务），数据库文件在 data/beauty_advisor.db
 # 切换 MySQL：设置环境变量 DATABASE_URL，例如：
 #   mysql+pymysql://root:password@127.0.0.1:3306/beauty_advisor?charset=utf8mb4

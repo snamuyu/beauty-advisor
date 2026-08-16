@@ -32,6 +32,10 @@ class RecommendRequest(BaseModel):
     keywords: list[str] = Field(default_factory=list, description="关键词")
     top_n: int = Field(default=5, ge=1, le=20, description="返回条数")
     hot_weight: float = Field(default=0.3, ge=0.0, le=1.0, description="热度权重")
+    blogger_weight: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="博主相似度权重（P2-13 预留，当前恒为 0）",
+    )
 
 
 @router.post("/recommend")
@@ -62,6 +66,7 @@ def recommend(req: RecommendRequest, db: Session = Depends(get_db)):
         keywords=req.keywords,
         top_n=req.top_n,
         hot_weight=req.hot_weight,
+        blogger_weight=req.blogger_weight,
     )
 
     used_profile = {

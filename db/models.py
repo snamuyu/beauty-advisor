@@ -34,6 +34,7 @@ class Video(Base):
         comment="视频唯一标识（文件名 stem 或 BV 号）",
     )
     title: Mapped[str] = mapped_column(String(500), default="", comment="视频标题")
+    uploader: Mapped[str] = mapped_column(String(255), default="", comment="博主/作者")
     categories: Mapped[list] = mapped_column(
         JSON, default=list, comment="所属分类列表，如 ['修容教程']"
     )
@@ -56,6 +57,14 @@ class Video(Base):
     collect_count: Mapped[int] = mapped_column(Integer, default=0, comment="收藏数（热度权重）")
     play_count: Mapped[int] = mapped_column(Integer, default=0, comment="播放数")
     source_url: Mapped[str] = mapped_column(String(1000), default="", comment="视频来源 URL")
+    content_type: Mapped[str] = mapped_column(
+        String(32), default="video",
+        comment="内容类型：video=视频 / image_note=图文笔记",
+    )
+    feature_vector: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True,
+        comment="人脸特征向量 {dims:{四维}, face_shape}（P2-12）",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -85,6 +94,10 @@ class UserProfile(Base):
     volume: Mapped[float] = mapped_column(Float, default=0.5, comment="量感 0-1")
     curvature: Mapped[float] = mapped_column(Float, default=0.5, comment="曲直度 0-1")
     width: Mapped[float] = mapped_column(Float, default=0.5, comment="宽窄度 0-1")
+    feature_vector: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True,
+        comment="人脸特征向量 {dims:{四维}, face_shape}（P2-12）",
+    )
     style_tag: Mapped[str] = mapped_column(String(128), default="", comment="风格标签")
     keywords: Mapped[list] = mapped_column(JSON, default=list, comment="风格关键词")
     pain_points: Mapped[list] = mapped_column(JSON, default=list, comment="需要修饰的痛点")

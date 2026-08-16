@@ -39,12 +39,14 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parent  # beauty-advisor/scripts
+ROOT_DIR = PROJECT_DIR.parent.parent          # F:\looks
 
-DEFAULT_VIDEO_DIR = PROJECT_DIR.parent / "ASR 语音转文字" / "output_fusion"
-DEFAULT_ASR_OUTPUT = PROJECT_DIR.parent / "ASR 语音转文字" / "output"
-DEFAULT_INDEX_FILE = PROJECT_DIR.parent / "video_crawler" / "data" / "crawler_index.csv"
-DEFAULT_HISTORY_DIR = PROJECT_DIR / "history"
+DEFAULT_VIDEO_DIR = ROOT_DIR / "ASR 语音转文字" / "output_fusion"
+DEFAULT_ASR_OUTPUT = ROOT_DIR / "ASR 语音转文字" / "output"
+DEFAULT_INDEX_FILE = ROOT_DIR / "video_crawler" / "data" / "crawler_index.csv"
+DEFAULT_HISTORY_DIR = PROJECT_DIR.parent / "history"
+DEFAULT_MC_DIR = ROOT_DIR / "MediaCrawler"
 
 
 def _normalize_stem(name: str) -> str:
@@ -52,18 +54,17 @@ def _normalize_stem(name: str) -> str:
     return re.sub(r"\.f\d+$", "", name)
 
 
-def load_crawler_index(index_file: Path) -> dict:
-    """读取 video_crawler 索引，按标题返回元数据。"""
-    result = {}
+def load_crawler_index(index_file: Path) -> tuple[dict, dict]:
+    """读取 video_crawler 索引，返回 (按标题, 按 video_id) 两个元数据索引。"""
+    result: dict = {}
+    by_id: dict = {}
     if not index_file.is_file():
         print(f"[索引] 未找到 {index_file}，跳过热度/URL 合并。")
-        return result
+        return result, by_id
     with open(index_file, encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
             key = _normalize_stem(row.get("title", "")).strip()
-            if not key:
-                continue
-            result[key] = {
+            meta = {
                 "video_id": (row.get("video_id") or "").strip(),
                 "url": (row.get("url") or "").strip(),
                 "uploader": (row.get("uploader") or "").strip(),
@@ -72,8 +73,31 @@ def load_crawler_index(index_file: Path) -> dict:
                 "view_count": _to_int(row.get("view_count")),
                 "comment_count": _to_int(row.get("comment_count")),
             }
+            if key:
+                result[key] = meta
+            if meta["video_id"]:
+                by_id[meta["video_id"]] = meta
     print(f"[索引] 已加载 {len(result)} 条视频元数据：{index_file}")
-    return result
+    return result, by_id
+
+
+def lookup_meta(stem: str, by_title: dict, by_id: dict) -> dict:
+    """按 文件名 stem 查找 crawler_index 元数据：
+    1) stem 与标题完全一致；2) 标题包含在 stem 中（取最长）；3) video_id 前缀命中（xhs 笔记 id）。
+    """
+    if stem in by_title:
+        return by_title[stem]
+    candidates = [k for k in by_title if k and k in stem]
+    if candidates:
+        return by_title[max(candidates, key=len)]
+    vid = ""
+    for v in by_id:
+        if stem.startswith(v + "_") or stem == v:
+            if len(v) > len(vid):
+                vid = v
+    if vid:
+        return by_id[vid]
+    return {}
 
 
 def _to_float(value) -> float:
@@ -153,6 +177,7 @@ def build_video(stem: str, json_path: Path, asr_output: Path, meta: dict) -> Vid
     return Video(
         video_id=stem,
         title=(result.get("title") or payload.get("video") or stem),
+        uploader=meta.get("uploader") or "",
         categories=categories,
         summary=result.get("summary") or "",
         steps=list(result.get("steps") or []),
@@ -170,11 +195,12 @@ def build_video(stem: str, json_path: Path, asr_output: Path, meta: dict) -> Vid
         collect_count=0,
         play_count=meta.get("view_count") or 0,
         source_url=meta.get("url") or "",
+        content_type="video",
     )
 
 
 def import_videos(db, video_dir: Path, asr_output: Path, index_file: Path, force: bool, limit: int, dry_run: bool) -> dict:
-    meta = load_crawler_index(index_file)
+    meta_by_title, meta_by_id = load_crawler_index(index_file)
     items = collect_fusion_files(video_dir)
     if limit:
         items = items[:limit]
@@ -186,7 +212,7 @@ def import_videos(db, video_dir: Path, asr_output: Path, index_file: Path, force
             skipped += 1
             continue
 
-        video = build_video(stem, json_path, asr_output, meta.get(stem, {}))
+        video = build_video(stem, json_path, asr_output, lookup_meta(stem, meta_by_title, meta_by_id))
         if video is None:
             failed += 1
             continue
@@ -198,6 +224,8 @@ def import_videos(db, video_dir: Path, asr_output: Path, index_file: Path, force
         if existing and force:
             for key, value in video.__dict__.items():
                 if key != "_sa_instance_state" and key != "id":
+                    if key == "tags" and not value and getattr(existing, "tags", None):
+                        continue  # 不覆盖已有标签
                     setattr(existing, key, value)
             updated += 1
         else:
@@ -283,15 +311,96 @@ def import_profiles(db, history_dir: Path, force: bool, limit: int, dry_run: boo
     return {"inserted": inserted, "updated": updated, "skipped": skipped, "failed": failed}
 
 
+def collect_image_notes(mc_dir: Path) -> list[dict]:
+    """从 MediaCrawler 的小红书搜索结果里收集图文笔记（type != video）。"""
+    jsonl_dir = mc_dir / "data" / "xhs" / "jsonl"
+    json_dir = mc_dir / "data" / "xhs" / "json"
+    records: list[dict] = []
+    for folder in (jsonl_dir, json_dir):
+        if not folder.is_dir():
+            continue
+        for fp in sorted(folder.glob("search_contents_*")):
+            try:
+                text = fp.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            if fp.suffix == ".jsonl":
+                for line in text.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+            else:
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(data, list):
+                    records.extend(r for r in data if isinstance(r, dict))
+                elif isinstance(data, dict):
+                    records.append(data)
+    seen: dict[str, dict] = {}
+    for r in records:
+        if str(r.get("type") or "").strip() == "video":
+            continue
+        note_id = str(r.get("note_id") or "").strip()
+        if not note_id or not (r.get("note_url") or "").strip():
+            continue
+        seen.setdefault(note_id, r)
+    return list(seen.values())
+
+
+def import_image_notes(db, mc_dir: Path, force: bool, dry_run: bool) -> dict:
+    """把小红书图文笔记（无视频）也入库：标题 + 分类 + 笔记链接，content_type=image_note。"""
+    items = collect_image_notes(mc_dir)
+    inserted = updated = skipped = 0
+    for note in items:
+        note_id = str(note.get("note_id") or "").strip()
+        existing = db.scalar(select(Video).where(Video.video_id == note_id))
+        if existing and not force:
+            skipped += 1
+            continue
+        title = (note.get("title") or note.get("desc") or note_id)[:200]
+        cat = (note.get("source_keyword") or "").strip()
+        row = Video(
+            video_id=note_id,
+            title=title,
+            categories=[cat] if cat else [],
+            summary="",
+            keywords=list(note.get("tag_list") or []),
+            source_url=str(note.get("note_url") or ""),
+            content_type="image_note",
+        )
+        if dry_run:
+            print(f"    [将导入图文] {note_id}（{cat}）")
+            continue
+        if existing and force:
+            for key, value in row.__dict__.items():
+                if key != "_sa_instance_state" and key != "id":
+                    setattr(existing, key, value)
+            updated += 1
+        else:
+            db.add(row)
+            inserted += 1
+    if not dry_run:
+        db.commit()
+    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
 def main():
     parser = argparse.ArgumentParser(description="把离线结果批量导入数据库（Day 2）")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--videos", action="store_true", help="只导入视频")
     group.add_argument("--profiles", action="store_true", help="只导入用户画像")
+    group.add_argument("--image-notes", action="store_true", help="只导入小红书图文笔记")
     parser.add_argument("--video-dir", default=str(DEFAULT_VIDEO_DIR), help="融合 JSON 目录")
     parser.add_argument("--asr-output", default=str(DEFAULT_ASR_OUTPUT), help="ASR 项目 output 目录")
     parser.add_argument("--index-file", default=str(DEFAULT_INDEX_FILE), help="video_crawler 索引 CSV")
     parser.add_argument("--history-dir", default=str(DEFAULT_HISTORY_DIR), help="历史诊断记录目录")
+    parser.add_argument("--mc-dir", default=str(DEFAULT_MC_DIR), help="MediaCrawler 根目录（图文笔记来源）")
     parser.add_argument("--force", action="store_true", help="已存在的记录也更新")
     parser.add_argument("--dry-run", action="store_true", help="只统计不写库")
     parser.add_argument("--limit", type=int, default=0, help="最多处理条数（0=全部）")
@@ -299,6 +408,11 @@ def main():
 
     db = SessionLocal()
     try:
+        if args.image_notes:
+            print("== 导入小红书图文笔记（image_note）==")
+            r = import_image_notes(db, Path(args.mc_dir), args.force, args.dry_run)
+            print(f"图文：导入 {r['inserted']}，更新 {r['updated']}，跳过 {r['skipped']}")
+            return
         if not args.profiles:
             print("== 导入视频（videos）==")
             r = import_videos(

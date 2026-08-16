@@ -53,7 +53,8 @@ class FaceAnalyzer:
         # 直接返回第一个人脸的完整信息字典
         return face_list[0]
 
-    def calc_dimensions(self, landmarks: list) -> dict:
+    @staticmethod
+    def calc_dimensions(landmarks: list) -> dict:
         """
         根据72点landmark计算四维得分
         """
