@@ -43,6 +43,14 @@ APP_PORT = int(os.getenv("APP_PORT", "8000"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 
+# ===== 人脸检测校验阈值（防止卡通/非真实人脸蒙混通过）=====
+# 人脸置信度下限，0~1，低于此值视为“不是人脸”
+FACE_PROBABILITY_THRESHOLD = float(os.getenv("FACE_PROBABILITY_THRESHOLD", "0.8"))
+# 真实人脸(face_type=human)判定的置信度下限
+FACE_TYPE_THRESHOLD = float(os.getenv("FACE_TYPE_THRESHOLD", "0.8"))
+# 人脸模糊度上限，0~1，越大越模糊
+FACE_MAX_BLUR = float(os.getenv("FACE_MAX_BLUR", "0.7"))
+
 # ===== 数据库配置 =====
 # 默认 SQLite（MVP 推荐，无需安装任何数据库服务），数据库文件在 data/beauty_advisor.db
 # 切换 MySQL：设置环境变量 DATABASE_URL，例如：

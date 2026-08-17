@@ -2,7 +2,13 @@
 import requests
 import numpy as np
 import logging
-from config import BAIDU_API_KEY, BAIDU_SECRET_KEY
+from config import (
+    BAIDU_API_KEY,
+    BAIDU_SECRET_KEY,
+    FACE_MAX_BLUR,
+    FACE_PROBABILITY_THRESHOLD,
+    FACE_TYPE_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +43,7 @@ class FaceAnalyzer:
         data = {
             "image": image_base64,
             "image_type": "BASE64",
-            "face_field": "landmark,age,gender,face_shape",
+            "face_field": "landmark,age,gender,face_shape,face_type,quality",
             "max_face_num": 1,
         }
         resp = requests.post(self.DETECT_URL, params=params, data=data).json()
@@ -50,8 +56,43 @@ class FaceAnalyzer:
         if not face_list:
             return {}
 
-        # 直接返回第一个人脸的完整信息字典
-        return face_list[0]
+        # 只接受置信度达标的真实人脸，卡通脸/低置信/模糊图一律拒绝
+        face = face_list[0]
+        if not self._is_valid_human_face(face):
+            logger.warning(
+                "检测结果未通过真实人脸校验: face_probability=%s, face_type=%s, blur=%s",
+                face.get("face_probability"),
+                face.get("face_type"),
+                (face.get("quality") or {}).get("blur"),
+            )
+            return {}
+        return face
+
+    @staticmethod
+    def _is_valid_human_face(face: dict) -> bool:
+        """校验是否为置信度达标的真实人脸，拒绝卡通脸/低置信/模糊图。"""
+        # 1. 人脸置信度
+        prob = face.get("face_probability")
+        if prob is None or prob < FACE_PROBABILITY_THRESHOLD:
+            return False
+
+        # 2. 必须是真实人脸（human），卡通/高达这类 stylized 脸会判为 cartoon
+        face_types = face.get("face_type") or []
+        if not face_types:
+            return False
+        best_type = max(face_types, key=lambda t: t.get("probability", 0))
+        if (
+            best_type.get("type") != "human"
+            or best_type.get("probability", 0) < FACE_TYPE_THRESHOLD
+        ):
+            return False
+
+        # 3. 模糊度（0 清晰 ~ 1 模糊）
+        quality = face.get("quality") or {}
+        if quality.get("blur", 0) > FACE_MAX_BLUR:
+            return False
+
+        return True
 
     @staticmethod
     def calc_dimensions(landmarks: list) -> dict:

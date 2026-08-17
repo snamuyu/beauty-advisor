@@ -151,6 +151,9 @@ async def analyze_style(request: ImageRequest):
         raise HTTPException(status_code=400, detail="未检测到人脸或人脸检测失败")
 
     landmarks = face_data.get("landmark72", [])
+    if not landmarks or len(landmarks) < 72:
+        logger.warning(f"人脸关键点不足 72 个（实际 {len(landmarks)}），疑似非真实人脸")
+        raise HTTPException(status_code=400, detail="未检测到真实人脸，请上传清晰的正面人脸照片")
     dimensions = analyzer.calc_dimensions(landmarks)
     logger.info(f"四维计算完成: {dimensions}")
 
