@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from core.face_analyzer import FaceAnalyzer
-from config import CORS_ORIGINS, LLM_CONFIG, LOG_LEVEL
+from config import BASE_DIR, CORS_ORIGINS, LLM_CONFIG, LOG_LEVEL
 
 import base64
 import logging
@@ -64,6 +65,7 @@ except Exception as e:
 client = openai.OpenAI(
     api_key=LLM_CONFIG["cloud"]["api_key"],
     base_url=LLM_CONFIG["cloud"]["base_url"],
+    timeout=90.0,  # 千问接口超时，避免 /analyze 无限挂起
 )
 
 # --- 历史记录文件路径 ---
@@ -141,7 +143,7 @@ SYSTEM_PROMPT = """
 
 # --- 定义核心分析接口 ---
 @app.post("/analyze", response_model=StyleReport)
-async def analyze_style(request: ImageRequest):
+def analyze_style(request: ImageRequest):
     image_data = request.image_base64
 
     # 1. 人脸检测与四维计算
@@ -239,7 +241,7 @@ def save_history(record_id: str, data: dict):
 
 # --- 查询历史记录列表 ---
 @app.get("/history")
-async def get_history():
+def get_history():
     records = []
     for filename in sorted(os.listdir(HISTORY_DIR), reverse=True):
         if filename.endswith(".json"):
@@ -256,12 +258,17 @@ async def get_history():
 
 # --- 查询单条历史记录 ---
 @app.get("/history/{record_id}")
-async def get_history_detail(record_id: str):
+def get_history_detail(record_id: str):
     filepath = os.path.join(HISTORY_DIR, f"{record_id}.json")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="记录不存在")
     with open(filepath, "r", encoding="utf-8") as f:
         return json.load(f)
+
+# --- 前端静态资源（第四周：frontend/ 独立目录，由 FastAPI 托管） ---
+# 挂载在 / 并放在所有 API 路由之后，所以 /analyze、/recommend、/history、/docs 优先于静态文件。
+_FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
 
 # --- 根路径测试 ---
 # @app.get("/")

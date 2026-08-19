@@ -17,6 +17,9 @@ class FaceAnalyzer:
 
     DETECT_URL = "https://aip.baidubce.com/rest/2.0/face/v3/detect"
     TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
+    # 外部接口超时（秒），避免网络卡死时 /analyze 无限挂起
+    TOKEN_TIMEOUT = 15
+    DETECT_TIMEOUT = 20
 
     def __init__(self):
         self.access_token = self._get_token()
@@ -29,7 +32,9 @@ class FaceAnalyzer:
             "client_secret": BAIDU_SECRET_KEY,
         }
         try:
-            resp = requests.post(self.TOKEN_URL, params=params).json()
+            resp = requests.post(
+                self.TOKEN_URL, params=params, timeout=self.TOKEN_TIMEOUT
+            ).json()
             return resp["access_token"]
         except Exception as e:
             logger.error(f"获取百度Token失败: {e}")
@@ -46,7 +51,12 @@ class FaceAnalyzer:
             "face_field": "landmark,age,gender,face_shape,face_type,quality",
             "max_face_num": 1,
         }
-        resp = requests.post(self.DETECT_URL, params=params, data=data).json()
+        resp = requests.post(
+            self.DETECT_URL,
+            params=params,
+            data=data,
+            timeout=self.DETECT_TIMEOUT,
+        ).json()
 
         if resp.get("error_code") != 0:
             logger.error(f"人脸检测失败: {resp.get('error_msg')}")
@@ -78,9 +88,20 @@ class FaceAnalyzer:
 
         # 2. 必须是真实人脸（human），卡通/高达这类 stylized 脸会判为 cartoon
         face_types = face.get("face_type") or []
-        if not face_types:
+        # 兼容百度返回的三种形态：字符串 / 单个字典 / 字典列表
+        if isinstance(face_types, dict):
+            face_types = [face_types]
+        elif isinstance(face_types, str):
+            face_types = [{"type": face_types, "probability": 1.0}]
+        normalized = []
+        for t in face_types or []:
+            if isinstance(t, dict):
+                normalized.append(t)
+            elif isinstance(t, str):
+                normalized.append({"type": t, "probability": 1.0})
+        if not normalized:
             return False
-        best_type = max(face_types, key=lambda t: t.get("probability", 0))
+        best_type = max(normalized, key=lambda t: t.get("probability", 0))
         if (
             best_type.get("type") != "human"
             or best_type.get("probability", 0) < FACE_TYPE_THRESHOLD
