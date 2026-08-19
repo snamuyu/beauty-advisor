@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beauty Advisor · 风格诊断</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">BA</span>
+      <div>
+        <h1>Beauty Advisor</h1>
+        <p>上传一张正面照，获取四维风格诊断与妆容建议，并匹配适合你的化妆视频</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card upload-card" id="upload-card">
+      <h2>1 · 上传照片</h2>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="file-input" accept="image/*" hidden>
+        <img id="preview" alt="照片预览" hidden>
+        <div class="dropzone-hint" id="dropzone-hint">
+          <div class="icon">📷</div>
+          <p>点击或拖拽照片到此处</p>
+          <p class="sub">建议使用光线充足的正脸照片</p>
+        </div>
+      </div>
+      <button id="analyze-btn" class="btn primary" disabled>开始诊断</button>
+      <p class="hint">诊断会调用人脸检测与 AI 大模型，约需 10~30 秒</p>
+    </section>
+
+    <section class="card result-card" id="result-card" hidden>
+      <h2>2 · 诊断结果</h2>
+      <div class="style-banner">
+        <span class="style-tag" id="style-tag"></span>
+        <div class="chips" id="keyword-chips"></div>
+      </div>
+      <div class="report-grid">
+        <div class="report-block">
+          <h3>四维风格得分</h3>
+          <div class="radar-wrap"><canvas id="radar" width="320" height="320"></canvas></div>
+          <div class="bars" id="dimension-bars"></div>
+        </div>
+        <div class="report-block">
+          <h3>风格定位</h3>
+          <p class="positioning" id="positioning-reason"></p>
+          <p class="celebrity" id="celebrity-refs"></p>
+          <h3>妆容建议</h3>
+          <div class="advice-list" id="makeup-advice"></div>
+          <h3>发型建议</h3>
+          <div class="hair-advice" id="hair-advice"></div>
+        </div>
+      </div>
+      <p class="summary" id="summary"></p>
+      <button id="recommend-btn" class="btn primary">3 · 查看推荐视频</button>
+    </section>
+
+    <section class="card recommend-card" id="recommend-card" hidden>
+      <h2>推荐视频</h2>
+      <div class="video-grid" id="video-grid"></div>
+      <p class="empty" id="video-empty" hidden>暂时没有匹配度足够的视频，可以换一张照片再试</p>
+    </section>
+  </main>
+
+  <footer>Beauty Advisor · 第四周前端 · 由 FastAPI 托管</footer>
+
+  <div class="loading-mask" id="loading-mask" hidden>
+    <div class="spinner"></div>
+    <p id="loading-text">正在分析…</p>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
