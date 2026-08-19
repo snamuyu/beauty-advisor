@@ -95,6 +95,54 @@ DIMENSION_CATEGORY_HINTS = [
      ["新手底妆", "化妆技巧"], "量感低 → 清透自然系"),
 ]
 
+# 分类别名归一化：把不同平台的同类内容（如小红书“口红试色”↔B站“唇妆教程”）映射到同一分类族，
+# 让图文笔记也能参与匹配，避免推荐结果里全是 B 站视频。
+CATEGORY_SYNONYMS = {
+    "口红试色": ["唇妆教程"],
+    "眼影画法": ["化妆技巧", "眼妆教程"],
+    "眼妆教程": ["化妆技巧"],
+    "新手化妆": ["新手底妆", "化妆技巧"],
+    "日常妆容": ["化妆技巧"],
+}
+
+
+def _normalized_categories(categories) -> set:
+    """把视频分类展开成含同义词的集合，便于跨平台匹配。"""
+    cats = set(categories or [])
+    for c in list(cats):
+        cats.update(CATEGORY_SYNONYMS.get(c, []))
+    return cats
+
+
+def _platform_of(result: dict) -> str:
+    """按链接判断内容平台，用于推荐列表的平台均衡。"""
+    url = result.get("url") or ""
+    if "xiaohongshu" in url:
+        return "xhs"
+    if "bilibili" in url:
+        return "bili"
+    return "other"
+
+
+def _balance_platforms(results: list[dict], top_n: int) -> list[dict]:
+    """平台多样性：纯分数排序容易让单一平台刷屏（库里小红书占 91%），
+    限制单平台最多占约 60%，保证其他平台（有合格候选时）也有位置。"""
+    if len(results) <= 1 or top_n <= 1:
+        return results[:top_n]
+    max_per_platform = max(1, math.ceil(top_n * 0.6))
+    counts: dict[str, int] = {}
+    final: list[dict] = []
+    for result in results:
+        platform = _platform_of(result)
+        if counts.get(platform, 0) >= max_per_platform:
+            continue
+        counts[platform] = counts.get(platform, 0) + 1
+        final.append(result)
+        if len(final) >= top_n:
+            break
+    return final
+
+
 # 匹配强度分级阈值（P0-4，0-1 归一化分数；可按数据质量调整）
 STRONG_THRESHOLD = 0.45
 MEDIUM_THRESHOLD = 0.25
@@ -128,6 +176,7 @@ def _text_overlap(a: str, b: str) -> bool:
 def _video_text(v: Video) -> str:
     """用于关键词命中的视频文本窗口。"""
     parts = [v.title or "", v.summary or ""]
+    parts += list(v.categories or [])
     parts += list(v.steps or [])
     parts += list(v.tips or [])
     parts += list(v.keywords or [])
@@ -142,6 +191,7 @@ def score_video(v: Video, profile: UserProfile | None = None,
     """计算单个视频与用户画像的匹配得分。"""
     reasons: list[str] = []
     tags = v.tags or {}
+    video_cats = _normalized_categories(v.categories or [])
     face_cn = _norm_face_shape(face_shape or (profile.face_shape if profile else ""))
     pains = list(pain_points or (profile.pain_points if profile else []) or [])
     style = style_tag or (profile.style_tag if profile else "") or ""
@@ -177,10 +227,10 @@ def score_video(v: Video, profile: UserProfile | None = None,
     # 3. 分类相关（脸型 + 风格 → 分类映射，归一化到 0-1）
     cat_hits = set()
     if face_cn:
-        cat_hits |= set(FACE_SHAPE_CATEGORIES.get(face_cn, [])) & set(v.categories or [])
+        cat_hits |= set(FACE_SHAPE_CATEGORIES.get(face_cn, [])) & video_cats
     for token in STYLE_CATEGORY_HINTS:
         if style and token in style:
-            cat_hits |= set(STYLE_CATEGORY_HINTS[token]) & set(v.categories or [])
+            cat_hits |= set(STYLE_CATEGORY_HINTS[token]) & video_cats
     if cat_hits:
         reasons.append("分类相关：" + "、".join(sorted(cat_hits)))
     category = 1.0 if cat_hits else 0.0
@@ -189,7 +239,7 @@ def score_video(v: Video, profile: UserProfile | None = None,
     dim_raw = 0
     if profile:
         for _name, cond, cats, reason in DIMENSION_CATEGORY_HINTS:
-            if cond(profile) and set(cats) & set(v.categories or []):
+            if cond(profile) and set(cats) & video_cats:
                 dim_raw += 1
                 reasons.append(reason)
     dim = min(1.0, dim_raw / 3.0)
@@ -287,7 +337,7 @@ def recommend_videos(db, profile: UserProfile | None = None,
         })
 
     results.sort(key=lambda r: -r["score"])
-    return results[:top_n]
+    return _balance_platforms(results, top_n)
 
 
 def main():

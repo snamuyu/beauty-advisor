@@ -114,6 +114,21 @@ def _to_int(value) -> int:
         return 0
 
 
+def clean_platform_url(video_id: str, url: str = "") -> str:
+    """统一处理来源地址：
+    - 保留抓取时的原始地址；小红书链接必须带 xsec_token，否则未登录访问会渲染空页；
+    - B 站缺地址时用 BV 号重建；小红书缺地址时用笔记 id 重建。
+    """
+    if url:
+        return url
+    if not url and video_id.startswith("BV"):
+        return f"https://www.bilibili.com/video/{video_id}"
+    note_id = video_id.split("_", 1)[0]
+    if len(note_id) >= 20:
+        return f"https://www.xiaohongshu.com/explore/{note_id}"
+    return ""
+
+
 def collect_fusion_files(video_dir: Path) -> list[tuple[str, Path]]:
     """扫描 output_fusion，返回 [(stem, 首个 JSON 路径)]，跨分类按 stem 去重。"""
     if not video_dir.is_dir():
@@ -194,7 +209,7 @@ def build_video(stem: str, json_path: Path, asr_output: Path, meta: dict) -> Vid
         like_count=meta.get("like_count") or 0,
         collect_count=0,
         play_count=meta.get("view_count") or 0,
-        source_url=meta.get("url") or "",
+        source_url=clean_platform_url(stem, meta.get("url") or ""),
         content_type="video",
     )
 
@@ -368,12 +383,12 @@ def import_image_notes(db, mc_dir: Path, force: bool, dry_run: bool) -> dict:
         row = Video(
             video_id=note_id,
             title=title,
-            categories=[cat] if cat else [],
-            summary="",
-            keywords=list(note.get("tag_list") or []),
-            source_url=str(note.get("note_url") or ""),
-            content_type="image_note",
-        )
+              categories=[cat] if cat else [],
+              summary="",
+              keywords=list(note.get("tag_list") or []),
+              source_url=clean_platform_url(note_id, str(note.get("note_url") or "")),
+              content_type="image_note",
+          )
         if dry_run:
             print(f"    [将导入图文] {note_id}（{cat}）")
             continue

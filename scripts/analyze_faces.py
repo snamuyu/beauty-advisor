@@ -80,6 +80,12 @@ def main():
             vec = detect_frames_vector(frames_dir_for(v), analyzer, max_frames=args.max_frames)
             if vec:
                 v.feature_vector = vec
+                # 同步把检测到的脸型写入 tags.face_shapes，供匹配引擎的“脸型命中”使用
+                shape = vec.get("face_shape") or ""
+                if shape:
+                    tags = dict(v.tags or {})
+                    tags["face_shapes"] = list({shape, *(tags.get("face_shapes") or [])})
+                    v.tags = tags
                 done += 1
             else:
                 no_face += 1
