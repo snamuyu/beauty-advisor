@@ -40,6 +40,9 @@ beauty-advisor/
 ## 快速开始
 
 ```bash
+# 0. 进入项目专用虚拟环境（conda env: beauty-advisor）
+conda activate beauty-advisor
+
 python -m pip install -r requirements.txt
 
 # 1. 建表（默认 SQLite: data/beauty_advisor.db）
@@ -52,8 +55,9 @@ python scripts/import_data.py
 python scripts/tag_videos.py
 python scripts/fetch_heat.py
 
-# 4. 启动 API
+# 4. 启动 API（第四周起前端页面由 FastAPI 直接托管）
 python -m uvicorn main:app --host 127.0.0.1 --port 8000
+#    浏览器打开 http://127.0.0.1:8000 即可使用上传诊断 + 视频推荐页面
 # 接口文档：http://127.0.0.1:8000/docs
 ```
 
